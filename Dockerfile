@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npx vite build
 
 # Stage 2: Build Rust backend
-FROM rust:1.83-bookworm AS backend
+FROM rust:1.89-bookworm AS backend
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src/ src/
