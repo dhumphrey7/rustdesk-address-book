@@ -13,7 +13,9 @@ use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/ab/peers", get(get_peers))
+        // The RustDesk client POSTs (empty body) to fetch the peer list; the
+        // web console GETs it. Accept both.
+        .route("/api/ab/peers", get(get_peers).post(get_peers))
         .route("/api/ab/peer/add/{guid}", post(add_peer))
         .route("/api/ab/peer/update/{guid}", put(update_peer))
         .route("/api/ab/peer/{guid}", delete(delete_peers))
