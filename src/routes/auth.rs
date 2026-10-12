@@ -12,7 +12,22 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
-        .route("/api/currentUser", get(current_user))
+        // The client POSTs currentUser (with the bearer token in a header),
+        // so accept both methods.
+        .route(
+            "/api/currentUser",
+            get(current_user).post(current_user),
+        )
+        // The login window GETs this before showing the form. We support no
+        // third-party OIDC providers, so answer with an empty list rather
+        // than letting the SPA fallback return HTML.
+        .route("/api/login-options", get(login_options))
+}
+
+/// GET /api/login-options — third-party login options offered by this server.
+/// The client expects a JSON array of strings; empty means "password only".
+async fn login_options() -> Json<Value> {
+    Json(json!([]))
 }
 
 async fn login(
