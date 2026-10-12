@@ -24,14 +24,10 @@ fn default_db_path() -> String {
     "data/db.sqlite3".to_string()
 }
 fn default_jwt_secret() -> String {
-    use rand::Rng;
-    let secret: String = rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(64)
-        .map(char::from)
-        .collect();
-    tracing::warn!("No JWT secret configured — using random secret (sessions won't survive restarts)");
-    secret
+    // Intentionally empty: the warning and random-secret fallback are applied
+    // in `Config::load()` *after* environment overrides, so setting
+    // RUSTDESK_AB_JWT_SECRET does not still emit a misleading warning.
+    String::new()
 }
 fn default_admin_username() -> String {
     "admin".to_string()
@@ -70,6 +66,21 @@ impl Config {
         }
         if let Ok(v) = std::env::var("RUSTDESK_AB_ADMIN_PASSWORD") {
             config.admin_password = v;
+        }
+
+        // Apply the random-secret fallback last, so the warning only fires when
+        // neither config.toml nor the environment supplied a JWT secret.
+        if config.jwt_secret.is_empty() {
+            use rand::Rng;
+            let secret: String = rand::thread_rng()
+                .sample_iter(&rand::distributions::Alphanumeric)
+                .take(64)
+                .map(char::from)
+                .collect();
+            tracing::warn!(
+                "No JWT secret configured — using random secret (sessions won't survive restarts)"
+            );
+            config.jwt_secret = secret;
         }
 
         config
