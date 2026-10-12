@@ -1,4 +1,5 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::{Query, State}, routing::get, Json, Router};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -7,12 +8,29 @@ use crate::error::ApiError;
 use crate::models::address_book::*;
 use crate::state::AppState;
 
+#[derive(Debug, Deserialize)]
+pub struct Pagination {
+    #[serde(default)]
+    pub current: Option<i64>,
+    #[serde(default)]
+    pub page_size: Option<i64>,
+}
+
 pub fn routes() -> Router<AppState> {
+    // The RustDesk client POSTs to all of these endpoints (with an empty body),
+    // so each route must accept both GET and POST. Registering only `get()`
+    // makes the client's POST fail with HTTP 405.
     Router::new()
         .route("/api/ab", get(get_ab_legacy).post(update_ab_legacy))
-        .route("/api/ab/personal", get(get_personal))
-        .route("/api/ab/shared/profiles", get(get_shared_profiles))
-        .route("/api/ab/settings", get(get_ab_settings))
+        .route("/api/ab/personal", get(get_personal).post(get_personal))
+        .route(
+            "/api/ab/shared/profiles",
+            get(get_shared_profiles).post(get_shared_profiles),
+        )
+        .route(
+            "/api/ab/settings",
+            get(get_ab_settings).post(get_ab_settings),
+        )
 }
 
 /// Ensure the user has a personal address book, creating one if needed.
@@ -44,7 +62,9 @@ async fn ensure_personal_ab(
     Ok(guid)
 }
 
-/// GET /api/ab/personal — returns the user's personal address book profile.
+/// GET/POST /api/ab/personal — returns the user's personal address book profile.
+/// The RustDesk client reads `guid` at the TOP LEVEL of the response, so the
+/// profile fields are flattened rather than nested under `data`.
 async fn get_personal(
     State(state): State<AppState>,
     AuthUser(claims): AuthUser,
@@ -52,13 +72,11 @@ async fn get_personal(
     let guid = ensure_personal_ab(&state.db, claims.user_id, &claims.sub).await?;
 
     Ok(Json(AbPersonalResponse {
-        data: AbProfile {
-            guid,
-            name: "Personal".to_string(),
-            owner: claims.sub,
-            rule: 3, // full control
-            note: String::new(),
-        },
+        guid,
+        name: "Personal".to_string(),
+        owner: claims.sub,
+        rule: 3, // full control
+        note: String::new(),
     }))
 }
 
@@ -209,10 +227,13 @@ async fn update_ab_legacy(
     Ok(Json(json!({})))
 }
 
-/// GET /api/ab/shared/profiles — returns shared address books the user has access to.
+/// GET/POST /api/ab/shared/profiles — returns shared address books the user has access to.
+/// The client sends `current` / `pageSize` query parameters and expects
+/// `{ "data": [...], "total": N }`.
 async fn get_shared_profiles(
     State(state): State<AppState>,
     AuthUser(claims): AuthUser,
+    Query(_pagination): Query<Pagination>,
 ) -> Result<Json<AbSharedProfilesResponse>, ApiError> {
     // Find address books shared with this user directly or via groups
     let shared: Vec<(String, String, i64, i32)> = sqlx::query_as(

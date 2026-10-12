@@ -9,10 +9,15 @@ pub struct AddressBook {
     pub created_at: String,
 }
 
-/// Response for GET /api/ab/personal — matches RustDesk client expectation.
+/// Response for GET/POST /api/ab/personal — matches RustDesk client expectation.
+/// The client reads `guid` directly from the top-level JSON object.
 #[derive(Debug, Serialize)]
 pub struct AbPersonalResponse {
-    pub data: AbProfile,
+    pub guid: String,
+    pub name: String,
+    pub owner: String,
+    pub rule: i32,
+    pub note: String,
 }
 
 #[derive(Debug, Serialize)]
